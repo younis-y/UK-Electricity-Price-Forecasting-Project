@@ -63,7 +63,7 @@ For deep learning, Bai, Kolter and Koltun (2018) demonstrate that TCNs with dila
 
 ```mermaid
 flowchart TD
-    subgraph S1["Stage 1 - Renewable Generation"]
+    subgraph S1["Stage 1 - Renewables"]
         W["Open-Meteo Weather Forecasts<br/>100 UK locations, hourly"]
         XG1["XGBoost Generation Models<br/>walk-forward validation"]
         REN["Predicted Wind & Solar Generation (MW)"]
