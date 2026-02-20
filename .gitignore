@@ -1,0 +1,44 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Jupyter
+.ipynb_checkpoints/
+.virtual_documents/
+.jupyter/
+
+# Anaconda
+anaconda_projects/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Previous datasets (kept locally for reference)
+data/previous_datasets/
+
+# Training logs (regenerated on each run)
+data/training_log.jsonl
+
+# Notebook backups
+*.ipynb.bak
+
+# R
+.Rhistory
