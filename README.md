@@ -39,7 +39,7 @@ Lago et al. (2021) benchmark deep neural networks and LEAR across European marke
 
 Grinsztajn, Oyallon and Varoquaux (2022) show empirically that gradient-boosted trees outperform deep learning on heterogeneous tabular data, justifying XGBoost (Chen and Guestrin, 2016) as the primary classical ML component. Liu et al. (2024) confirm SVR's competitiveness in multi-market EPF, informing the ensemble design.
 
-For deep learning, Bai, Kolter and Koltun (2018) demonstrate that TCNs with dilated causal convolutions match LSTM performance with full training parallelism. Nie et al. (2023) introduce PatchTST, which segments sequences into overlapping patches before applying Transformer self-attention -- an approach that aligns naturally with electricity prices' 24-hour diurnal structure. Hochreiter and Schmidhuber (1997) and Schuster and Paliwal (1997) provide the LSTM and BiLSTM baselines.
+For deep learning, four architectures are implemented and compared. Hochreiter and Schmidhuber (1997) introduce LSTM, which captures long-range temporal dependencies via gated recurrence; Schuster and Paliwal (1997) extend this to BiLSTM, processing sequences in both directions for richer context. Bai, Kolter and Koltun (2018) demonstrate that TCNs with dilated causal convolutions match LSTM performance with full training parallelism. Nie et al. (2023) introduce PatchTST, which segments sequences into overlapping patches before applying Transformer self-attention -- an approach that aligns naturally with electricity prices' 24-hour diurnal structure. All four architectures are compared under identical training conditions to isolate the effect of architecture choice.
 
 | Gap in Prior Literature | This Study's Response |
 |------------------------|----------------------|
@@ -129,7 +129,7 @@ All source data is included in `data/raw/` for full reproducibility. The downloa
 
 ### Deep Learning -- Key Design Choices
 
-All four DL models share a **168-hour (weekly) lookback window**, AdamW optimiser, OneCycleLR scheduling, and identical evaluation conditions.
+Four architectures are compared as the primary modelling focus: **LSTM** and **BiLSTM** as established recurrent baselines, **TCN** as a parallelisable convolutional alternative, and **PatchTST** as the state-of-the-art patch-based Transformer. All share a **168-hour (weekly) lookback window**, AdamW optimiser, OneCycleLR scheduling, and identical evaluation conditions to enable a fair architectural comparison.
 
 | Model | Architecture | Key Property |
 |-------|-------------|--------------|
@@ -154,6 +154,8 @@ XGBoost and SVR are tuned via `GridSearchCV` with `TimeSeriesSplit(5)` (81 and 4
 
 **Economic value (RQ3):** The binary-constrained LP battery simulation confirms that AI-forecast-guided dispatch outperforms persistence-forecast dispatch in realised profit. The gap between oracle (perfect-forecast) and AI-forecast profit quantifies the remaining economic cost of forecast error and motivates further model improvement.
 
+**Deep learning comparison:** All four DL architectures (LSTM, BiLSTM, TCN, PatchTST) are ranked against each other and against the classical ML ensemble. The controlled comparison -- identical window, optimiser, and training budget -- isolates the contribution of architecture choice from data and training differences.
+
 **SHAP analysis** of the XGBoost component confirms that Stage 1 predicted wind generation ranks among the top predictive features alongside price lags -- validating that the two-stage pipeline contributes information beyond what price history alone provides.
 
 ---
@@ -164,7 +166,7 @@ XGBoost and SVR are tuned via `GridSearchCV` with `TimeSeriesSplit(5)` (81 and 4
 2. **Single market.** The pipeline is calibrated for GB only; generalisation to other markets requires recalibration (Weron, 2014).
 3. **Daily fuel price resolution.** Gas and carbon prices are forward-filled from daily publications; intra-day fuel cost variation is not captured.
 4. **Idealised battery model.** The LP assumes perfect market access, a simplified degradation cost, and no grid connection or curtailment constraints.
-5. **Compute requirements.** TCN and PatchTST training requires GPU or Apple Silicon acceleration at 500 epochs and batch size 256; CPU reproduction is significantly slower.
+5. **Compute requirements.** All four DL models (LSTM, BiLSTM, TCN, PatchTST) require GPU or Apple Silicon acceleration for practical training at 500 epochs and batch size 256; CPU reproduction is significantly slower.
 
 ---
 
