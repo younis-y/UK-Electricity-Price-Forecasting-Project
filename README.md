@@ -63,7 +63,7 @@ For deep learning, Bai, Kolter and Koltun (2018) demonstrate that TCNs with dila
 
 ```mermaid
 flowchart TD
-    subgraph S1["Stage 1 - Weather to Renewable Generation"]
+    subgraph S1["Stage 1 - Weather and Renewable Generation"]
         W["Open-Meteo Weather Forecasts<br/>100 UK locations, hourly"]
         XG1["XGBoost Generation Models<br/>walk-forward validation"]
         REN["Predicted Wind & Solar Generation (MW)"]
@@ -74,7 +74,7 @@ flowchart TD
     G["Gas & Carbon Prices<br/>lagged 1 day to prevent leakage"]
     CAL["Calendar & Price History<br/>lags, rolling stats, cyclical encoding"]
 
-    subgraph S2["Stage 2 - Multi-Feature Price Prediction"]
+    subgraph S2["Stage 2 - Multi-Feature Price Forecasting"]
         FE["Feature Engineering<br/>19 leakage-free features"]
         ML["ML Ensemble<br/>XGBoost + SVR, alpha-optimised"]
         DL["Deep Learning<br/>TCN, PatchTST, LSTM, BiLSTM<br/>168h weekly window"]
@@ -83,7 +83,7 @@ flowchart TD
         FE --> DL --> PRICE
     end
 
-    subgraph S3["Stage 3 - Evaluation & Economic Application"]
+    subgraph S3["Stage 3 - Evaluation and Economic Application"]
         STAT["Statistical Validation<br/>Wilcoxon, Bootstrap 95% CIs"]
         SPIKE["Spike Detection<br/>Precision, Recall, F1"]
         BATT["Battery Arbitrage<br/>100 MW / 200 MWh Binary LP"]
