@@ -29,7 +29,6 @@
 
 # In[1]:
 
-
 import pandas as pd
 import numpy as np
 import requests
@@ -41,9 +40,7 @@ warnings.filterwarnings('ignore')
 
 print("Imports complete")
 
-
 # In[2]:
-
 
 # Time period
 start_date = '2021-01-01'
@@ -59,9 +56,7 @@ MIN_CAPACITY_MW = 1.0
 
 print(f"Configuration set: {start_date} to {end_date}")
 
-
 # In[3]:
-
 
 #Load REPD CSV
 import os
@@ -82,9 +77,7 @@ else:
     print(f"Loaded {len(repd_raw)} records from REPD")
     print(repd_raw.head())
 
-
 # In[4]:
-
 
 #Filter and cleaning the REPD csv
 
@@ -137,9 +130,7 @@ def clean_repd(df):
 
 repd_clean = clean_repd(repd_raw)
 
-
 # In[5]:
-
 
 def add_lat_lon(df):
 
@@ -166,9 +157,7 @@ repd_final = add_lat_lon(repd_clean)
 # 3. Check results
 print(repd_final[['Site Name', 'latitude', 'longitude']].head())
 
-
 # In[6]:
-
 
 #Work out weighted capacity for each location
 def calculate_all_weighted_locations(df, tech_types):
@@ -199,9 +188,7 @@ def calculate_all_weighted_locations(df, tech_types):
 
     return regions.reset_index()[['Region', 'latitude', 'longitude', 'total_capacity_mw', 'cumulative%', 'global_share']]
 
-
 # In[7]:
-
 
 wind_all = calculate_all_weighted_locations(repd_final, [WIND_ONSHORE, WIND_OFFSHORE])
 solar_all = calculate_all_weighted_locations(repd_final, [SOLAR])
@@ -215,9 +202,7 @@ for name, df in [("WIND", wind_all), ("SOLAR", solar_all)]:
         'cumulative%': '{:.2%}'.format
     }))
 
-
 # In[8]:
-
 
 # --- 2. Filter (Top 95%) ---
 wind_final = wind_all[wind_all['cumulative%'] <= 0.95].copy()
@@ -239,21 +224,15 @@ print(f"Noise Removed:    {len(solar_all) - len(solar_final)} regions")
 print(f"Capacity Kept:    {solar_final['global_share'].sum():.1%}")
 print("\n", solar_final)
 
-
 # In[9]:
-
 
 print(wind_final)
 
-
 # In[10]:
-
 
 print(solar_final)
 
-
 # In[11]:
-
 
 # LOAD WIND FILES
 
@@ -291,9 +270,7 @@ print(f"\nColumns: {all_wind[first_file].columns.tolist()}")
 print(f"\nFirst few rows:")
 print(all_wind[first_file].head())
 
-
 # In[12]:
-
 
 # =============================================================================
 # INSPECT DATA QUALITY
@@ -331,9 +308,7 @@ for filename, df in all_wind.items():
     if len(missing) > 0:
         print("first_missing_hours:", missing[:5].astype(str).tolist())
 
-
 # In[13]:
-
 
 import pandas as pd
 
@@ -346,9 +321,7 @@ for fname, df in all_wind.items():
     print("non_1h_steps:", (d != pd.Timedelta(hours=1)).sum())
     print("duplicates:", t.duplicated().sum())
 
-
 # In[14]:
-
 
 import numpy as np
 import pandas as pd
@@ -450,9 +423,7 @@ for fname, df in all_wind.items():
 qc_report_df = pd.DataFrame(qc_report).sort_values("file")
 qc_report_df
 
-
 # In[15]:
-
 
 #CHECK HOW MANY EXTREME VALUES EXIST
 
@@ -468,9 +439,7 @@ for filename, df in all_wind.items():
     if extreme > 0:
         print(f"  {filename}: {extreme} hours")
 
-
 # In[16]:
-
 
 # FIX STALE flag_suspicious + REBUILD SUSP FLAGS SAFELY (run once, then rerun your weighted-average cell)
 
@@ -499,9 +468,7 @@ for fname, df in all_wind_clean.items():
     print({c: int(df[c].sum()) for c in sus_cols})
     print("any in region:", int(df[sus_cols].max(axis=1).sum()))
 
-
 # In[17]:
-
 
 # CALCULATE WIND WEIGHTED AVERAGE (minimal changes, but correct)
 import numpy as np
@@ -568,9 +535,7 @@ print(f"Flagged hours: {wind_weighted['flag_suspicious'].sum()} ({wind_weighted[
 print(wind_weighted.head(10))
 print(wind_weighted.describe())
 
-
 # In[18]:
-
 
 OUTPUT_PATH = '../data/processed/wind_weighted_final.csv' ############CHANGE THIS FILEPATH TO HOW YOU HAVE SAVED IT
 wind_weighted.to_csv(OUTPUT_PATH, index=False)
@@ -578,18 +543,14 @@ print(f"Saved to: {OUTPUT_PATH}")
 print(f"Rows: {len(wind_weighted)}")
 print(f"Columns: {wind_weighted.columns.tolist()}")
 
-
 # In[19]:
-
 
 # Re-mount drive (Colab only)
 if IN_COLAB:
     from google.colab import drive
     drive.mount('/content/drive', force_remount=True)
 
-
 # In[20]:
-
 
 #LOAD SOLAR FILES
 
@@ -622,9 +583,7 @@ for filename in SOLAR_WEIGHTS.keys():
 first_file = list(all_solar.keys())[0]
 print(f"\nColumns: {all_solar[first_file].columns.tolist()}")
 
-
 # In[21]:
-
 
 #INSPECT SOLAR DATA QUALITY
 
@@ -649,9 +608,7 @@ for filename, df in all_solar.items():
     print(f"cloud_cover: {df['cloud_cover'].min():.1f} to {df['cloud_cover'].max():.1f} %")
     print(f"temperature: {df['temperature'].min():.1f} to {df['temperature'].max():.1f} °C")
 
-
 # In[22]:
-
 
 # Quick check: GHI should be 0 at night (10pm to 4am)
 night_hours = [22, 23, 0, 1, 2, 3, 4]
@@ -663,9 +620,7 @@ print(f"Rows with GHI > 0 at night: {(night_rows['ghi'] > 0).sum()}")
 midday_rows = all_solar[first_file][all_solar[first_file]['timestamp'].dt.hour == 12]
 print(f"GHI at midday (should be higher): {midday_rows['ghi'].mean():.2f} W/m²")
 
-
 # In[23]:
-
 
 #CALCULATE SOLAR WEIGHTED AVERAGE
 
@@ -692,9 +647,7 @@ print(f"Shape: {solar_weighted.shape}")
 print(solar_weighted.head(10))
 print(solar_weighted.describe())
 
-
 # In[24]:
-
 
 OUTPUT_PATH = '../data/processed/solar_weighted_final.csv' ############CHANGE THIS FILEPATH TO HOW YOU HAVE SAVED IT
 solar_weighted.to_csv(OUTPUT_PATH, index=False)
@@ -702,9 +655,7 @@ print(f"Saved to: {OUTPUT_PATH}")
 print(f"Rows: {len(solar_weighted)}")
 print(f"Columns: {solar_weighted.columns.tolist()}")
 
-
 # In[25]:
-
 
 # MERGE WIND AND SOLAR
 
@@ -733,20 +684,15 @@ print(f"Shape: {weather_final.shape}")
 print(f"Columns: {weather_final.columns.tolist()}")
 print(weather_final.head())
 
-
 # In[26]:
-
 
 OUTPUT_PATH = '../data/processed/weather_final.csv' ############CHANGE THIS FILEPATH TO HOW YOU HAVE SAVED IT
 weather_final.to_csv(OUTPUT_PATH, index=False)
 print(f"\nSaved to: {OUTPUT_PATH}")
 
-
 # In[27]:
 
-
 #FINAL DATA QUALITY CHECK
-
 
 print("="*60)
 print("FINAL DATA QUALITY CHECK")
@@ -781,7 +727,6 @@ print(f"   temperature:     {weather_final['temperature'].min():.1f} to {weather
 print("\n6. SUMMARY STATISTICS:")
 print(weather_final.describe())
 
-
 # ---
 # 
 # ## Forecast Weather Retraining — XGBoost Wind Generation Model
@@ -795,7 +740,6 @@ print(weather_final.describe())
 # 3. It provides a leakage-free alternative for the price prediction model
 
 # In[28]:
-
 
 import pandas as pd
 import numpy as np
@@ -841,9 +785,7 @@ else:
     print("  Run notebook 00_data_download.ipynb first to download forecast weather data.")
     df_weather_forecast = None
 
-
 # In[29]:
-
 
 # Prepare training data: align weather features with actual wind generation targets
 
@@ -916,9 +858,7 @@ else:
     X_fc, y_fc, ts_fc = None, None, None
     print("\nNo forecast weather data available — skipping forecast weather training")
 
-
 # In[30]:
-
 
 def walk_forward_xgb(X, y, timestamps, n_splits=5, label='Model'):
     """
@@ -1004,9 +944,7 @@ orig_r2 = r2_score(df_wind_orig['target_mw'], df_wind_orig['predicted_mw'])
 results['actual_weather'] = {'rmse': orig_rmse, 'mae': orig_mae, 'r2': orig_r2}
 print(f"  RMSE={orig_rmse:.1f} MW, MAE={orig_mae:.1f} MW, R²={orig_r2:.4f}")
 
-
 # In[31]:
-
 
 # ============================================================
 # COMPARISON: Actual Weather vs Forecast Weather
@@ -1039,7 +977,6 @@ if 'forecast_weather' in results:
     
     # ─── Visualisation ───
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    fig.suptitle('Wind Generation Prediction: Actual vs Forecast Weather', fontsize=14, fontweight='bold')
     
     # Bar chart comparison
     metrics_names = ['RMSE', 'MAE']
@@ -1051,7 +988,6 @@ if 'forecast_weather' in results:
     axes[0].bar(x - width/2, actual_vals, width, label='Actual Weather', color='steelblue', alpha=0.8)
     axes[0].bar(x + width/2, forecast_vals, width, label='Forecast Weather', color='coral', alpha=0.8)
     axes[0].set_ylabel('MW')
-    axes[0].set_title('Error Metrics')
     axes[0].set_xticks(x)
     axes[0].set_xticklabels(metrics_names)
     axes[0].legend()
@@ -1062,7 +998,6 @@ if 'forecast_weather' in results:
                 [actual['r2'], forecast['r2']],
                 color=['steelblue', 'coral'], alpha=0.8)
     axes[1].set_ylabel('R²')
-    axes[1].set_title('R² Score')
     axes[1].set_ylim(0, 1)
     axes[1].grid(axis='y', alpha=0.3)
     
@@ -1074,7 +1009,6 @@ if 'forecast_weather' in results:
     axes[2].plot([0, max_val], [0, max_val], 'k--', alpha=0.5, lw=1)
     axes[2].set_xlabel('Actual Wind Generation (MW)')
     axes[2].set_ylabel('Predicted (Forecast Weather)')
-    axes[2].set_title(f'Forecast Weather: R²={forecast["r2"]:.4f}')
     axes[2].grid(alpha=0.3)
     
     plt.tight_layout()
@@ -1085,7 +1019,6 @@ else:
     print("⚠ Forecast weather results not available.")
     print("  Run 00_data_download.ipynb first to get weather forecast data,")
     print("  then re-run this section.")
-
 
 # ### Key Findings
 # 

@@ -23,6 +23,21 @@ Day-ahead electricity price prediction for the GB market using a two-stage **wea
 
 ---
 
+## Quick Start
+
+```bash
+pip install -r requirements.txt
+
+python scripts/00_data_download.py                       # fetch raw leakage-free data
+python scripts/01_data_collection_wind_solar.py          # regional weather & REPD weighting
+python scripts/02_weather_processing_gen_prediction.py   # Stage 1: train XGBoost generation models
+python scripts/03_price_prediction_main.py               # Stage 2: full price forecasting & evaluation
+```
+
+GPU or Apple Silicon (MPS) is recommended for deep learning stages. A CPU fallback is available but training at 500 epochs and batch size 256 is significantly slower.
+
+---
+
 ## 1. Introduction
 
 GB electricity prices are set through a day-ahead auction and are highly volatile, driven by weather-dependent renewable generation, demand cycles, and fuel costs. Conventional statistical models treat price as a univariate time series, missing the physical causality that underlies price formation (Weron, 2014). A model that observes an imminent wind drought in weather forecast data hours before it affects generation output can anticipate the associated price spike that a price-history model cannot.
@@ -99,6 +114,26 @@ flowchart TD
 
 All exogenous features use only information available at forecast time (day-ahead forecasts, 1-day lagged prices). `StandardScaler` is fitted on training data only and applied to the test set.
 
+### Repository Structure
+
+```
+├── scripts/
+│   ├── 00_data_download.py                    # leakage-free API data collection
+│   ├── 01_data_collection_wind_solar.py       # REPD regional weighting & ERA5 fetch
+│   ├── 02_weather_processing_gen_prediction.py  # Stage 1 XGBoost generation models
+│   └── 03_price_prediction_main.py            # Stage 2 price forecasting & full evaluation
+├── data/
+│   ├── raw/                                   # source CSVs (included for reproducibility)
+│   ├── processed/                             # merged feature datasets
+│   └── predictions/                           # Stage 1 & Stage 2 forecast outputs
+├── figures/                                   # 22 pre-generated output plots
+├── docs/                                      # technical change log
+├── cache_manager.py                           # cache/temp file cleanup utility
+├── training_logger.py                         # JSON-lines training event logger
+├── training_monitor.py                        # Rich live terminal training dashboard
+└── requirements.txt
+```
+
 ---
 
 ## 5. Data
@@ -106,14 +141,17 @@ All exogenous features use only information available at forecast time (day-ahea
 | Dataset | Source | Resolution | Period |
 |---------|--------|------------|--------|
 | Day-ahead electricity prices | ENTSO-E Transparency Platform | Hourly | 2021-2025 |
-| Electricity demand | BMRS (Elexon) | Half-hourly -> hourly | 2021-2025 |
+| Electricity demand (outturn) | BMRS (Elexon) | Half-hourly -> hourly | 2021-2025 |
 | Day-ahead demand forecasts | BMRS (Elexon) | Half-hourly -> hourly | 2024-2025 |
+| Day-ahead wind & solar forecasts | BMRS (Elexon) | Half-hourly -> hourly | 2021-2026 |
 | Gas System Average Price | ICIS (Ofgem) | Daily -> hourly | 2021-2025 |
 | UK ETS carbon futures | Investing.com | Daily -> hourly | 2021-2025 |
 | Renewable site locations | REPD (DESNZ) | Static | Latest |
-| Weather forecasts | Open-Meteo API | Hourly | 2021-2025 |
+| Weather forecasts (day-ahead) | Open-Meteo Previous Runs API | Hourly | 2021-2026 |
 
 All source data is included in `data/raw/` for full reproducibility. The download pipeline (`scripts/00_data_download.py`) documents the leakage-free API calls used to retrieve each dataset.
+
+**Regional weather weighting:** REPD site data is filtered for operational projects > 1 MW. Site coordinates are converted from OSGB36 (British National Grid) to WGS84 using `pyproj`, and capacity-weighted regional centroids are computed for ~12 UK regions (covering 95% of installed capacity). Separate weather series are fetched for each centroid and aggregated by installed capacity weight before entering the generation models.
 
 ---
 
@@ -127,20 +165,58 @@ All source data is included in `data/raw/` for full reproducibility. The downloa
 | **Classical ML** | XGBoost, SVR, XGB+SVR Ensemble (grid-searched alpha), Random Forest, MLP, Decision Tree, Ridge |
 | **Deep Learning** | TCN, PatchTST, LSTM, BiLSTM |
 
+### Stage 1: Renewable Generation Forecasting (XGBoost)
+
+Separate XGBoost models are trained to predict hourly wind and solar generation from weather inputs, using **walk-forward (expanding window) validation** to prevent temporal leakage. Their outputs feed directly into Stage 2 as leakage-free features.
+
+| | Wind Models | Solar Models |
+|--|-------------|-------------|
+| **Input features** | `wind_speed_10m`, `wind_speed_100m`, `wind_gusts_10m`, `wind_direction_10m` | `shortwave_radiation`, `direct_normal_irradiance`, `cloud_cover`, `temperature_2m` |
+| **Target** | National wind generation (MW), capacity-weighted across regions | National solar generation (MW), capacity-weighted across regions |
+| **Validation** | Walk-forward expanding window | Walk-forward expanding window |
+| **Outputs** | `data/predictions/wind_gen_predicted_hourly_xgboost.csv` | `data/predictions/solar_gen_predicted_hourly_xgboost.csv` |
+
+### Feature Engineering
+
+All 19 Stage 2 features are constructed using only information available at forecast time, with no look-ahead.
+
+| Category | Features |
+|----------|----------|
+| **Renewable generation** | Predicted wind (MW), predicted solar (MW) — from Stage 1 |
+| **Demand** | Day-ahead demand forecast (MW) |
+| **Fuel & carbon** | Gas SAP lagged 1 day, UK ETS carbon futures lagged 1 day |
+| **Price history** | Price lag 24h, lag 48h, lag 168h (weekly) |
+| **Rolling statistics** | 24h rolling mean, 24h rolling std, 168h rolling mean |
+| **Calendar** | Hour of day (sin/cos), day of week (sin/cos), month (sin/cos), `is_weekend`, `is_holiday` (UK) |
+
 ### Deep Learning -- Key Design Choices
 
-Four architectures are compared as the primary modelling focus: **LSTM** and **BiLSTM** as established recurrent baselines, **TCN** as a parallelisable convolutional alternative, and **PatchTST** as the state-of-the-art patch-based Transformer. All share a **168-hour (weekly) lookback window**, AdamW optimiser, OneCycleLR scheduling, and identical evaluation conditions to enable a fair architectural comparison.
+Four architectures are compared as the primary modelling focus: **LSTM** and **BiLSTM** as established recurrent baselines, **TCN** as a parallelisable convolutional alternative, and **PatchTST** as the state-of-the-art patch-based Transformer. All share a **168-hour (weekly) lookback window** and identical training conditions to enable a fair architectural comparison.
 
 | Model | Architecture | Key Property |
 |-------|-------------|--------------|
-| **LSTM** (Hochreiter & Schmidhuber, 1997) | 3-layer, 256 hidden, temporal attention | Long-range dependency via gated recurrence |
+| **LSTM** (Hochreiter & Schmidhuber, 1997) | 3-layer, 256 hidden units, temporal attention | Long-range dependency via gated recurrence |
 | **BiLSTM** (Schuster & Paliwal, 1997) | 3-layer bidirectional, temporal attention | Forward + backward context |
 | **TCN** (Bai et al., 2018) | 5 residual blocks, dilations [1,2,4,8,16] | Receptive field 249h; fully parallelisable |
-| **PatchTST** (Nie et al., 2023) | 3-layer Transformer, 24h patches, 8 heads | Patches align with diurnal price cycle |
+| **PatchTST** (Nie et al., 2023) | 3-layer Transformer, 24h patches, 8 attention heads | Patches align with the diurnal price cycle |
+
+**Shared training protocol:**
+
+| Hyperparameter | Value |
+|----------------|-------|
+| Optimiser | AdamW (`lr=1e-3`, `weight_decay=1e-5`) |
+| LR scheduler | OneCycleLR |
+| Loss function | MSE |
+| Batch size | 256 |
+| Max epochs | 500 with early stopping (validation loss) |
+| Gradient clipping | `max_norm=1.0` |
+| Lookback window | 168h (one week) |
+| Random seed | 42 |
+| Device | CUDA / Apple Silicon MPS / CPU (auto-detected) |
 
 ### Classical ML -- Optimisation
 
-XGBoost and SVR are tuned via `GridSearchCV` with `TimeSeriesSplit(5)` (81 and 48 combinations respectively). The ensemble weight alpha is learned via validation grid search at 0.01 resolution.
+XGBoost and SVR are tuned via `GridSearchCV` with `TimeSeriesSplit(5)` (81 and 48 hyperparameter combinations respectively). The ensemble blend weight alpha is learned via a separate validation grid search at 0.01 resolution.
 
 ---
 

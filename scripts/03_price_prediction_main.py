@@ -40,12 +40,9 @@
 
 # In[10]:
 
-
 get_ipython().system('pip install xgboost shap holidays openpyxl pulp statsmodels torch')
 
-
 # In[1]:
-
 
 # ============================================================
 # IMPORTS AND CONFIGURATION
@@ -76,6 +73,11 @@ from sklearn.svm import SVR
 import xgboost as xgb
 import holidays
 
+
+def clean_label(name: str) -> str:
+    """Replace underscores with spaces in axis / tick labels for publication figures."""
+    return name.replace('_', ' ')
+
 warnings.filterwarnings('ignore')
 
 # Suppress Python 3.13 ResourceTracker cleanup warnings (macOS)
@@ -92,14 +94,14 @@ plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_palette('deep')
 plt.rcParams.update({
     'figure.dpi':        150,
-    'savefig.dpi':       150,
-    'font.size':         11,
-    'axes.titlesize':    13,
-    'axes.labelsize':    12,
-    'xtick.labelsize':   10,
-    'ytick.labelsize':   10,
-    'legend.fontsize':   10,
-    'figure.titlesize':  16,
+    'savefig.dpi':       300,
+    'font.size':         14,
+    'axes.titlesize':    16,
+    'axes.labelsize':    14,
+    'xtick.labelsize':   12,
+    'ytick.labelsize':   12,
+    'legend.fontsize':   12,
+    'figure.titlesize':  18,
     'axes.spines.top':   False,
     'axes.spines.right': False,
     'axes.grid':         True,
@@ -112,7 +114,6 @@ np.random.seed(RANDOM_STATE)
 
 print("All imports loaded successfully.")
 
-
 # ### Reproducibility Statement
 # 
 # All random seeds, software versions, and device configuration are documented
@@ -120,7 +121,6 @@ print("All imports loaded successfully.")
 # between runs due to non-deterministic GPU operations.
 
 # In[2]:
-
 
 # ============================================================
 # REPRODUCIBILITY CONFIGURATION
@@ -146,16 +146,13 @@ print("  MPS/CUDA operations are non-deterministic; expect minor DL")
 print("  metric variation between runs (typically ±0.005 R²).")
 print("=" * 60)
 
-
 # In[3]:
-
 
 import sys, os, time
 sys.path.insert(0, os.path.join(os.path.dirname(os.getcwd()), ''))
 import training_logger
 training_logger.start_run()
 print('Training logger initialised.')
-
 
 # ---
 # # SECTION 4: Electricity Price Prediction
@@ -165,12 +162,9 @@ print('Training logger initialised.')
 
 # In[4]:
 
-
 training_logger.log_stage("Data Loading & Preprocessing")
 
-
 # In[5]:
-
 
 # ============================================================
 # 4.1 DATA LOADING
@@ -235,14 +229,12 @@ DEMAND_IS_PERSISTENCE_FORECAST = False
 
 print("\n✓ All datasets loaded (forecast replacements available where found)")
 
-
 # ## 4.1a Missing Data Analysis
 # 
 # Before merging, we quantify the extent, distribution, and temporal pattern of missing values in each source dataset. This supports the assumptions underlying our treatment strategy (linear interpolation for smooth meteorological variables; no imputation for generation/price series).
 # 
 
 # In[6]:
-
 
 # ============================================================
 # 4.1a MISSING DATA ANALYSIS
@@ -252,9 +244,6 @@ print("MISSING DATA ANALYSIS")
 print("="*60)
 
 fig, axes = plt.subplots(2, 3, figsize=(20, 10))
-fig.suptitle('Fig. 1 — Missing Value Assessment Across Source Datasets\n'
-             'Fraction of null values per variable in each raw data source',
-             fontsize=15, fontweight='bold', y=1.02)
 
 # Define datasets with ONLY relevant columns to avoid junk like "Unnamed: 21", "Vol."
 datasets_info = {
@@ -297,7 +286,6 @@ for idx, (name, (df_src, _)) in enumerate(datasets_info.items()):
                 transform=ax.transAxes, fontsize=14, color='green', fontweight='bold')
         ax.set_xlim(0, 1)
     
-    ax.set_title(f'{name}\n({len(df_src):,} rows)', fontsize=12, fontweight='bold')
     ax.grid(axis='x', alpha=0.3)
     
     total_miss = miss.sum()
@@ -311,7 +299,7 @@ for idx, (name, (df_src, _)) in enumerate(datasets_info.items()):
     })
 
 plt.tight_layout()
-plt.savefig('../figures/missing_data_analysis.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/missing_data_analysis.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 # Summary table
@@ -321,12 +309,10 @@ print(df_miss.to_string(index=False))
 print("\n→ Strategy: Linear interpolation for short meteorological gaps (≤6h);")
 print("  no imputation for generation/price series to preserve physical realism.")
 
-
 # ## 4.2 Preprocessing & Merging
 # 
 
 # In[7]:
-
 
 # ============================================================
 # 4.2 PREPROCESSING & MERGING
@@ -454,14 +440,12 @@ if DEMAND_IS_PERSISTENCE_FORECAST:
     print("  Demand source: 24h persistence forecast (shift(24) of outturn)")
 print(f"  Missing after merge:\n{data.isnull().sum()}")
 
-
 # ## 4.2a Exploratory Data Analysis (EDA)
 # 
 # This section provides systematic analysis of variable distributions, skewness, heavy tails, regime behaviour, outlier diagnostics, and dataset imbalance — all prior to feature engineering and modelling.
 # 
 
 # In[8]:
-
 
 # ============================================================
 # 4.2a.1 VARIABLE DISTRIBUTIONS & DESCRIPTIVE STATISTICS
@@ -490,15 +474,12 @@ for col in target_and_features:
     ku_label = 'heavy-tailed (leptokurtic)' if ku > 1 else ('light-tailed (platykurtic)' if ku < -1 else 'near-normal tails')
     print(f"  {col:<25s}: skewness={sk:+.2f} ({sk_label}), excess kurtosis={ku:+.2f} ({ku_label})")
 
-
 # In[9]:
-
 
 # ============================================================
 # 4.2a.2 DISTRIBUTION PLOTS WITH HEAVY-TAIL DIAGNOSTICS
 # ============================================================
 fig, axes = plt.subplots(3, 4, figsize=(22, 15))
-fig.suptitle('Variable Distributions, QQ-Plots & Temporal Evolution', fontsize=16, fontweight='bold')
 
 for idx, col in enumerate(target_and_features):
     row = idx
@@ -508,10 +489,7 @@ for idx, col in enumerate(target_and_features):
     ax_qq = axes[idx, 1] if idx < 3 else axes[idx-3, 3]
     
 # Re-layout for cleaner 6-variable display
-fig, axes = plt.subplots(6, 2, figsize=(16, 28))
-fig.suptitle('Fig. 2 — Distribution Analysis: Histograms & QQ-Plots\n'
-             'Assessing normality, skewness, and kurtosis of key model features',
-             fontsize=15, fontweight='bold', y=1.03)
+fig, axes = plt.subplots(6, 2, figsize=(16, 20))
 
 for idx, col in enumerate(target_and_features):
     vals = data[col].dropna()
@@ -524,26 +502,24 @@ for idx, col in enumerate(target_and_features):
     ax_h.axvline(vals.median(), color='green', linestyle=':', lw=1.5, label=f'Median: {vals.median():.1f}')
     sk = vals.skew()
     ku = vals.kurtosis()
-    ax_h.set_title(f'{col}\nskew={sk:.2f}, excess kurt={ku:.2f}', fontsize=11)
     ax_h.legend(fontsize=8)
     ax_h.set_ylabel('Density')
-    
+    ax_h.set_title(clean_label(col))
+
     # QQ Plot (heavy-tail diagnostic)
     ax_q = axes[idx, 1]
     stats.probplot(vals, dist='norm', plot=ax_q)
-    ax_q.set_title(f'QQ-Plot: {col}', fontsize=11)
     ax_q.get_lines()[0].set_markersize(2)
+    ax_q.set_title(f'{clean_label(col)} – Probability Plot')
 
 plt.tight_layout()
-plt.savefig('../figures/eda_distributions_qq.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/eda_distributions_qq.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 print("\n→ QQ-plot deviations from the diagonal indicate heavy tails (leptokurtosis).")
 print("  Price_EUR shows notable right-tail deviation → extreme spike events.")
 
-
 # In[10]:
-
 
 # ============================================================
 # 4.2a.3 OUTLIER ANALYSIS & CHARACTERISATION
@@ -553,9 +529,6 @@ print("OUTLIER ANALYSIS")
 print("="*60)
 
 fig, axes = plt.subplots(2, 3, figsize=(20, 10))
-fig.suptitle('Fig. 3 — Outlier Diagnostics: Box Plots & IQR-Based Identification\n'
-             'IQR method identifies extreme values that may distort model training',
-             fontsize=15, fontweight='bold', y=1.02)
 
 outlier_summary = []
 for idx, col in enumerate(target_and_features):
@@ -578,8 +551,7 @@ for idx, col in enumerate(target_and_features):
     ax.axhline(y=upper, color='red', linestyle='--', alpha=0.5, linewidth=1)
     ax.axhline(y=lower, color='red', linestyle='--', alpha=0.5, linewidth=1)
     
-    ax.set_title(f'{col}\n{n_total:,} outliers ({n_total/len(vals)*100:.1f}%)', fontsize=11)
-    ax.set_ylabel(col)
+    ax.set_ylabel(clean_label(col))
     ax.set_xticks([])  # Remove the "1" on x-axis
     ax.grid(axis='y', alpha=0.3)
     
@@ -595,7 +567,7 @@ for idx, col in enumerate(target_and_features):
     })
 
 plt.tight_layout()
-plt.savefig('../figures/eda_outlier_analysis.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/eda_outlier_analysis.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 df_outliers = pd.DataFrame(outlier_summary)
@@ -604,9 +576,7 @@ print(df_outliers.to_string(index=False))
 print("\n→ Outliers are RETAINED as extreme events (spikes, negative prices, wind ramps)")
 print("  are central to the study objectives. No trimming or Winsorisation applied.")
 
-
 # In[11]:
-
 
 # ============================================================
 # 4.2a.4 PRICE REGIME ANALYSIS & DATASET IMBALANCE
@@ -626,14 +596,10 @@ regime_counts = regimes.value_counts().sort_index()
 regime_pct = (regime_counts / len(prices) * 100).round(2)
 
 fig, axes = plt.subplots(1, 3, figsize=(20, 6))
-fig.suptitle('Fig. 4 — Price Regime Distribution & Imbalance Assessment\n'
-             'Class imbalance in spike events challenges model training; 95th percentile threshold shown',
-             fontsize=15, fontweight='bold', y=1.04)
 
 # Regime bar chart
 colors = ['#d62728', '#ff7f0e', '#2ca02c', '#1f77b4', '#9467bd', '#8c564b']
 regime_counts.plot(kind='bar', ax=axes[0], color=colors, edgecolor='black')
-axes[0].set_title('(a) Price Regime Frequencies', fontsize=12)
 axes[0].set_ylabel('Count')
 axes[0].set_xlabel('Regime')
 for i, (cnt, pct) in enumerate(zip(regime_counts, regime_pct)):
@@ -647,7 +613,6 @@ n_negative = (prices <= 0).sum()
 
 axes[1].pie([n_spikes, len(prices) - n_spikes], labels=[f'Spikes (>{spike_thr:.0f}€)\nn={n_spikes}', f'Normal\nn={len(prices)-n_spikes}'],
            autopct='%1.1f%%', colors=['#d62728', '#2ca02c'], startangle=90, explode=[0.08, 0])
-axes[1].set_title(f'(b) Spike vs. Non-Spike Balance (threshold: {spike_thr:.0f} €/MWh)', fontsize=12)
 
 # Price time series with regime coloring
 ax3 = axes[2]
@@ -658,12 +623,11 @@ ax3.fill_between(data.index, spike_thr, prices.max()+10, where=prices > spike_th
                  alpha=0.3, color='red', label='Spike region')
 ax3.fill_between(data.index, prices.min()-10, 0, where=prices < 0, 
                  alpha=0.3, color='orange', label='Negative region')
-ax3.set_title('(c) Hourly Price Series with Spike Regions Highlighted', fontsize=12)
 ax3.set_ylabel('EUR/MWh')
 ax3.legend(fontsize=8)
 
 plt.tight_layout()
-plt.savefig('../figures/eda_price_regimes.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/eda_price_regimes.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 print(f"\nPrice Regime Distribution:")
@@ -674,14 +638,12 @@ print(f"→ Negative prices: {n_negative} events ({n_negative/len(prices)*100:.2
 print(f"→ Implications: F1-score (not accuracy) is the appropriate metric for spike detection;")
 print(f"   models may underpredict rare extreme events due to loss-function bias toward the majority class.")
 
-
 # ## 4.2b Statistical Pre-modelling Diagnostics
 # 
 # Formal tests for stationarity, seasonality, and autocorrelation structure inform modelling assumptions and feature design.
 # 
 
 # In[12]:
-
 
 # ============================================================
 # 4.2b.1 STATIONARITY TESTING (ADF + KPSS)
@@ -718,28 +680,21 @@ print("\n→ ADF rejects H0 (unit root) at 5%: series are level-stationary in th
 print("→ However, KPSS may flag trend non-stationarity, supporting the use of differenced lags and")
 print("  rolling statistics rather than raw levels for certain features.")
 
-
 # In[13]:
-
 
 # ============================================================
 # 4.2b.2 AUTOCORRELATION & SEASONALITY STRUCTURE
 # ============================================================
 fig, axes = plt.subplots(2, 2, figsize=(18, 10))
-fig.suptitle('Fig. 5 — Autocorrelation & Seasonal Decomposition of Electricity Price\n'
-             'Strong 24h periodicity justifies the persistence baseline; weekly cycle visible at lag 168',
-             fontsize=15, fontweight='bold', y=1.03)
 
 price_series = data['Price_EUR'].dropna()
 
 # ACF
 plot_acf(price_series, lags=168, ax=axes[0,0], alpha=0.05)
-axes[0,0].set_title('(a) Autocorrelation Function (168 lags = 1 week)', fontsize=12)
 axes[0,0].set_xlabel('Lag (hours)')
 
 # PACF
 plot_pacf(price_series, lags=72, method='ywm', ax=axes[0,1], alpha=0.05)
-axes[0,1].set_title('(b) Partial Autocorrelation Function (72 lags)', fontsize=12)
 axes[0,1].set_xlabel('Lag (hours)')
 
 # STL Decomposition (sample 90 days to keep tractable)
@@ -750,16 +705,14 @@ stl = STL(sample_freq, period=24, robust=True)
 result = stl.fit()
 
 result.trend.plot(ax=axes[1,0], color='blue', lw=1.5)
-axes[1,0].set_title('(c) STL Trend Component (last 90 days)', fontsize=12)
 axes[1,0].set_ylabel('EUR/MWh')
 
 result.seasonal.iloc[:168].plot(ax=axes[1,1], color='green', lw=1.5)
-axes[1,1].set_title('STL Seasonal Component (1-week sample)')
 axes[1,1].set_ylabel('EUR/MWh')
 axes[1,1].set_xlabel('Hour')
 
 plt.tight_layout()
-plt.savefig('../figures/eda_acf_seasonality.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/eda_acf_seasonality.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 # Ljung-Box test for serial correlation
@@ -769,14 +722,12 @@ print(lb_test.to_string())
 print("\n→ Highly significant autocorrelation at all lags confirms the need for")
 print("  lagged price features (24h, 168h) and rolling statistics in the model.")
 
-
 # ## 4.2c Unsupervised Learning: Regime Detection & Latent Structure
 # 
 # PCA and K-Means clustering are applied to explore latent structure, identify behavioural regimes, and inform feature engineering decisions.
 # 
 
 # In[14]:
-
 
 # ============================================================
 # 4.2c.1 PCA: DIMENSIONALITY & VARIANCE STRUCTURE
@@ -797,9 +748,6 @@ X_pca = pca.fit_transform(X_scaled)
 cumvar = np.cumsum(pca.explained_variance_ratio_)
 
 fig, axes = plt.subplots(1, 3, figsize=(20, 6))
-fig.suptitle('Fig. 6 — PCA: Variance Structure & Latent Feature Components\n'
-             'First 3 components capture majority of feature variance; loadings reveal dominant drivers',
-             fontsize=15, fontweight='bold', y=1.03)
 
 # Scree plot
 axes[0].bar(range(1, len(pca.explained_variance_ratio_)+1), pca.explained_variance_ratio_, 
@@ -808,7 +756,6 @@ axes[0].plot(range(1, len(cumvar)+1), cumvar, 'ro-', lw=2)
 axes[0].axhline(y=0.95, color='red', linestyle='--', alpha=0.5, label='95% threshold')
 axes[0].set_xlabel('Principal Component')
 axes[0].set_ylabel('Variance Explained')
-axes[0].set_title('(a) Scree Plot: Cumulative Variance Explained', fontsize=12)
 axes[0].legend()
 
 # PC1 vs PC2 scatter
@@ -817,24 +764,20 @@ scatter = axes[1].scatter(X_pca[:, 0], X_pca[:, 1], c=X_unsup['Price_EUR'].value
 plt.colorbar(scatter, ax=axes[1], label='Price (EUR)')
 axes[1].set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)')
 axes[1].set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)')
-axes[1].set_title('(b) PC1 vs PC2 (coloured by electricity price)', fontsize=12)
 
 # Loadings heatmap
-loadings = pd.DataFrame(pca.components_[:3].T, index=unsup_features, columns=['PC1', 'PC2', 'PC3'])
+loadings = pd.DataFrame(pca.components_[:3].T, index=[clean_label(f) for f in unsup_features], columns=['PC1', 'PC2', 'PC3'])
 sns.heatmap(loadings, annot=True, fmt='.2f', cmap='coolwarm', center=0, ax=axes[2])
-axes[2].set_title('(c) Feature Loadings on First 3 Principal Components', fontsize=12)
 
 plt.tight_layout()
-plt.savefig('../figures/unsupervised_pca.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/unsupervised_pca.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 print("\nPCA Explained Variance:")
 for i, (ev, cv) in enumerate(zip(pca.explained_variance_ratio_, cumvar)):
     print(f"  PC{i+1}: {ev*100:.1f}% (cumulative: {cv*100:.1f}%)")
 
-
 # In[15]:
-
 
 # ============================================================
 # 4.2c.2 K-MEANS CLUSTERING: PRICE REGIME DETECTION
@@ -851,16 +794,12 @@ for k in K_range:
 optimal_k = list(K_range)[np.argmax(silhouette_scores)]
 
 fig, axes = plt.subplots(1, 3, figsize=(20, 6))
-fig.suptitle(f'Fig. 7 — K-Means Market Regime Detection (optimal k = {optimal_k})\n'
-             'Unsupervised identification of distinct price regimes in feature space',
-             fontsize=15, fontweight='bold', y=1.03)
 
 # Silhouette plot
 axes[0].plot(list(K_range), silhouette_scores, 'bo-', lw=2)
 axes[0].axvline(x=optimal_k, color='red', linestyle='--', label=f'Optimal k={optimal_k}')
 axes[0].set_xlabel('Number of Clusters (k)')
 axes[0].set_ylabel('Silhouette Score')
-axes[0].set_title('(a) Optimal Cluster Count (Silhouette Score)', fontsize=12)
 axes[0].legend()
 
 # Fit with optimal k
@@ -873,17 +812,16 @@ data_clustered['Cluster'] = cluster_labels
 scatter2 = axes[1].scatter(X_pca[:, 0], X_pca[:, 1], c=cluster_labels, cmap='Set1', s=1, alpha=0.3)
 axes[1].set_xlabel('PC1')
 axes[1].set_ylabel('PC2')
-axes[1].set_title('(b) Market Regimes in PCA Space', fontsize=12)
 
 # Cluster profiles
 cluster_profiles = data_clustered.groupby('Cluster')[unsup_features].mean()
 cluster_profiles_norm = (cluster_profiles - cluster_profiles.mean()) / cluster_profiles.std()
+cluster_profiles_norm.columns = [clean_label(c) for c in cluster_profiles_norm.columns]
 sns.heatmap(cluster_profiles_norm.T, annot=True, fmt='.2f', cmap='coolwarm', center=0, ax=axes[2])
-axes[2].set_title('(c) Cluster Profile Signatures (z-scored feature means)', fontsize=12)
 axes[2].set_xlabel('Cluster')
 
 plt.tight_layout()
-plt.savefig('../figures/unsupervised_clustering.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/unsupervised_clustering.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 # Print cluster characterisation
@@ -899,18 +837,14 @@ for c in range(optimal_k):
 print("\n→ Clustering reveals distinct market regimes (e.g., low-wind/high-price vs high-wind/low-price),")
 print("  supporting the use of residual load and renewable interaction features in the price model.")
 
-
 # ## 4.3 Feature Engineering
 # 
 
 # In[16]:
 
-
 training_logger.log_stage("Feature Engineering")
 
-
 # In[17]:
-
 
 # ============================================================
 # 4.3 ADVANCED FEATURE ENGINEERING
@@ -960,9 +894,7 @@ data.dropna(inplace=True)
 
 print(f"✓ Final dataset: {len(data):,} records with {data.shape[1]} features")
 
-
 # In[18]:
-
 
 # ============================================================
 # 4.3a FEATURE CORRELATION ANALYSIS
@@ -988,32 +920,28 @@ for feat in da_features:
 
 print(f"\nTotal features: {len(feature_cols)}")
 fig, axes = plt.subplots(1, 2, figsize=(22, 9))
-fig.suptitle('Fig. 8 — Feature Correlation Analysis\n'
-             'Multicollinearity between features and individual Pearson correlation with target price',
-             fontsize=15, fontweight='bold', y=1.03)
 
 # Full correlation matrix
 corr = data[feature_cols + ['Price_EUR']].corr()
+corr.index = [clean_label(c) for c in corr.index]
+corr.columns = [clean_label(c) for c in corr.columns]
 mask = np.triu(np.ones_like(corr, dtype=bool))
 sns.heatmap(corr, mask=mask, annot=True, fmt='.2f', cmap='coolwarm', center=0,
             ax=axes[0], vmin=-1, vmax=1, square=True, annot_kws={'fontsize': 6})
-axes[0].set_title('(a) Inter-Feature Correlation Matrix', fontsize=12)
 
 # Correlation with target
-target_corr = corr['Price_EUR'].drop('Price_EUR').sort_values()
+target_corr = corr['Price EUR'].drop('Price EUR').sort_values()
 target_corr.plot(kind='barh', ax=axes[1], color=target_corr.apply(lambda x: 'coral' if x > 0 else 'steelblue'))
 axes[1].axvline(x=0, color='black', lw=1)
-axes[1].set_title('(b) Feature Correlation with Electricity Price (€/MWh)', fontsize=12)
 axes[1].set_xlabel('Pearson Correlation')
 
 plt.tight_layout()
-plt.savefig('../figures/eda_correlation.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/eda_correlation.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 print("\nTop correlations with Price_EUR:")
 for feat, r in target_corr.sort_values(ascending=False).items():
     print(f"  {feat:<30s}: r = {r:+.3f}")
-
 
 # ### 4.3b Leakage Audit
 # 
@@ -1030,7 +958,6 @@ for feat, r in target_corr.sort_values(ascending=False).items():
 # - Weather: Open-Meteo Previous Runs API provides historical forecasts (not actuals)
 
 # In[19]:
-
 
 # ============================================================
 # 4.3b LEAKAGE AUDIT
@@ -1082,12 +1009,10 @@ if DEMAND_IS_PERSISTENCE_FORECAST:
     print("  Note: Demand uses 24h persistence forecast (shift(24) of outturn)")
 print(f"{'='*60}")
 
-
 # ## 4.4 Data Split & Scaling
 # 
 
 # In[20]:
-
 
 # ============================================================
 # 4.4 DATA SPLIT & SCALING
@@ -1110,9 +1035,7 @@ print(f"Train set: {len(train_data):,} rows ({train_data.index.min().date()} →
 print(f"Test set:  {len(test_data):,} rows ({test_data.index.min().date()} → {test_data.index.max().date()})")
 print(f"Features:  {len(feature_cols)}")
 
-
 # In[ ]:
-
 
 # ============================================================
 # 4.4a HYPERPARAMETER OPTIMIZATION (Safe Mode)
@@ -1166,7 +1089,6 @@ print(f"  Best XGBoost params: {OPTIMIZED_XGB_PARAMS}")
 print(f"  Best CV RMSE: {-xgb_rs.best_score_:.2f} EUR/MWh")
 print(f"  Time: {time.time()-_t0:.0f}s")
 
-
 # --- 2. SVR Optimization ---
 # STRATEGY: Deterministic strided subsampling + Sequential Execution
 print("\n[2/2] SVR grid search (Subsampled)...")
@@ -1205,14 +1127,12 @@ print(f"  Time: {time.time()-_t0:.0f}s")
 
 print("="*60)
 
-
 # ## 4.4b Statistical Baselines: Persistence & SARIMAX
 # 
 # Strong baselines are essential for rigorous model comparison. The 24-hour persistence forecast (price at t-24) serves as a non-trivial benchmark that captures diurnal structure.
 # 
 
 # In[ ]:
-
 
 # ============================================================
 # 4.4b PERSISTENCE BASELINE
@@ -1234,18 +1154,14 @@ print(f"  RMSE: {rmse_persist:.2f} EUR/MWh")
 print(f"  MAE:  {mae_persist:.2f} EUR/MWh")
 print("\n→ This is a strong benchmark; ML models must beat persistence to justify added complexity.")
 
-
 # ## 4.5 Model Training: Hybrid Ensemble (XGBoost + SVR)
 # 
 
 # In[ ]:
 
-
 training_logger.log_stage("Hybrid Ensemble Training")
 
-
 # In[ ]:
-
 
 # ============================================================
 # 4.5 HYBRID ENSEMBLE TRAINING (Optimized Params + Learned Alpha)
@@ -1333,7 +1249,6 @@ training_logger.log_model_done('XGB+SVR Ensemble', r2=r2_ens, rmse=rmse_ens,
 
 print("="*50)
 
-
 # ## 4.6 Multi-Model Comparison
 # 
 # All model architectures are documented with hyperparameter specifications. The MLP Neural Network architecture is fully specified below.
@@ -1341,12 +1256,9 @@ print("="*50)
 
 # In[ ]:
 
-
 training_logger.log_stage("Multi-Model Comparison")
 
-
 # In[ ]:
-
 
 # ============================================================
 # 4.6 MULTI-MODEL COMPARISON (with full MLP specification)
@@ -1453,7 +1365,6 @@ for rank, (_, row) in enumerate(final_ranking.iterrows(), 1):
     print(f"  {rank:<3} {row['Model']:<22} {row['Category']:<20} {row['R2']:>6.4f}  {row['RMSE']:>7.2f}  {row['MAE']:>7.2f}  {bar}")
 print("  " + "-"*65)
 
-
 # ## 4.6f Deep Learning Models: TCN & PatchTST
 # 
 # This section implements two deep learning architectures for electricity price forecasting, motivated by recent advances in temporal modelling for energy systems:
@@ -1468,7 +1379,6 @@ print("  " + "-"*65)
 # - **Training**: AdamW optimiser, OneCycleLR scheduling (cosine anneal), early stopping (patience=40), gradient clipping
 
 # In[ ]:
-
 
 # ============================================================
 # 4.6f DEEP LEARNING: SETUP & MODEL DEFINITIONS
@@ -1557,7 +1467,6 @@ print(f"  Features per step: {n_features}")
 # MODEL DEFINITIONS
 # ==============================================================
 
-
 class CausalConv1d(nn.Module):
     """Causal convolution: output at time t depends only on inputs up to t."""
     def __init__(self, in_ch, out_ch, kernel_size, dilation):
@@ -1569,7 +1478,6 @@ class CausalConv1d(nn.Module):
     def forward(self, x):
         out = self.conv(x)
         return out[:, :, :x.size(2)]
-
 
 class TCNBlock(nn.Module):
     """Residual block with BatchNorm + GELU (Bai et al., 2018)."""
@@ -1588,7 +1496,6 @@ class TCNBlock(nn.Module):
     def forward(self, x):
         out = self.net(x)
         return F.gelu(out + self.skip(x))
-
 
 class TCNModel(nn.Module):
     """TCN: 5 blocks [128,128,64,64,32], kernel=5, dilations=[1,2,4,8,16].
@@ -1628,7 +1535,6 @@ class TCNModel(nn.Module):
         out = self.network(x)         # (B, C, T)
         out = out[:, :, -1]           # (B, C) — last timestep
         return self.head(out).squeeze(-1)
-
 
 class PatchTST(nn.Module):
     """Patch Time-Series Transformer with Temporal Attention Pooling.
@@ -1714,7 +1620,6 @@ class PatchTST(nn.Module):
 
         return self.head(tok).squeeze(-1)
 
-
 # -- Print architecture summary --
 print("\n" + "="*60)
 print("DEEP LEARNING ARCHITECTURES (M4 Max optimised)")
@@ -1735,15 +1640,11 @@ print(f"  PatchTST: {num_patches} overlapping patches (24h, stride=12h), tempora
 print(f"  Training: MAX_EPOCHS={MAX_EPOCHS}, PATIENCE={PATIENCE}, AdamW + OneCycleLR")
 print("All model architectures defined successfully.")
 
-
 # In[ ]:
-
 
 training_logger.log_stage("Deep Learning Training")
 
-
 # In[ ]:
-
 
 # ============================================================
 # 4.6f DEEP LEARNING: TRAINING & EVALUATION
@@ -1754,7 +1655,6 @@ _DL_CONFIGS = {
     'TCN':      {'max_lr': 3e-3, 'weight_decay': 0.01, 'grad_clip': 1.0},
     'PatchTST': {'max_lr': 1e-3, 'weight_decay': 0.01, 'grad_clip': 0.5},
 }
-
 
 def train_dl_model(model, name, train_loader, X_val, y_val,
                    max_epochs=MAX_EPOCHS, patience=PATIENCE):
@@ -1846,7 +1746,6 @@ def train_dl_model(model, name, train_loader, X_val, y_val,
                'best_epoch': len(train_losses) - wait,
                'grad_norms': grad_norms}
     return model, history
-
 
 # -- Instantiate models --
 dl_models = {
@@ -1941,19 +1840,13 @@ if dl_df.empty:
     print("WARNING: No DL models trained successfully - skipping DL visualisation.")
 else:
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    fig.suptitle('Fig. 9 - Deep Learning Model Comparison: TCN & PatchTST\n'
-                 'Performance metrics for deep learning architectures on the electricity price test set',
-                 fontsize=15, fontweight='bold', y=1.03)
 
     pal = ['#2ecc71', '#3498db']
     sns.barplot(x='R2',   y='Model', data=dl_df, palette=pal, ax=axes[0])
-    axes[0].set_title('(a) R2 Score (higher is better)', fontsize=12); axes[0].set_xlim(0, 1)
     sns.barplot(x='RMSE', y='Model', data=dl_df, palette=pal, ax=axes[1])
-    axes[1].set_title('(b) Root Mean Squared Error (lower is better)', fontsize=12)
     sns.barplot(x='MAE',  y='Model', data=dl_df, palette=pal, ax=axes[2])
-    axes[2].set_title('(c) Mean Absolute Error (lower is better)', fontsize=12)
     plt.tight_layout()
-    plt.savefig('../figures/dl_model_comparison.png', dpi=150, bbox_inches='tight')
+    plt.savefig('../figures/dl_model_comparison.png', dpi=300, bbox_inches='tight')
     plt.show()
 
     best_dl_name = dl_df.iloc[0]['Model']
@@ -1968,20 +1861,16 @@ else:
     ax.plot(test_data.index[:w], pred_ensemble[:w],
             label='XGB+SVR Ensemble', color='purple', linestyle=':', alpha=0.85)
     ax.set_ylabel('Price (EUR/MWh)')
-    ax.set_title(f'Best Deep Learning Model ({best_dl_name}) vs XGB+SVR Ensemble: 2-Week Forecast',
-                 fontsize=14)
     ax.legend(fontsize=11)
     plt.setp(ax.get_xticklabels(), rotation=45)
     plt.tight_layout()
-    plt.savefig('../figures/dl_best_forecast.png', dpi=150, bbox_inches='tight')
+    plt.savefig('../figures/dl_best_forecast.png', dpi=300, bbox_inches='tight')
     plt.show()
 
     print(f"\nBest deep learning model: {best_dl_name}")
     print("Visualisations saved: dl_model_comparison.png, dl_best_forecast.png")
 
-
 # In[ ]:
-
 
 # ============================================================
 # 4.6f-ii  DEEP LEARNING: TRAINING CONVERGENCE CURVES
@@ -1992,9 +1881,6 @@ else:
 
 n_dl = len(dl_histories)
 fig, axes = plt.subplots(1, n_dl, figsize=(8 * n_dl, 5), squeeze=False)
-fig.suptitle('Fig. 10 — Deep Learning Training Convergence\n'
-             'Train vs. validation MSE per epoch; dashed green line marks early-stopping best epoch',
-             fontsize=15, fontweight='bold')
 
 for idx, (name, hist) in enumerate(dl_histories.items()):
     ax = axes[0, idx]
@@ -2007,7 +1893,6 @@ for idx, (name, hist) in enumerate(dl_histories.items()):
                label=f'Best epoch ({best_ep})')
     ax.set_xlabel('Epoch')
     ax.set_ylabel('MSE Loss')
-    ax.set_title(f'{name} Training Curves', fontsize=13)
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
     # Log scale if range is large
@@ -2016,10 +1901,9 @@ for idx, (name, hist) in enumerate(dl_histories.items()):
         ax.set_ylabel('MSE Loss (log scale)')
 
 plt.tight_layout()
-plt.savefig('../figures/dl_training_curves.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/dl_training_curves.png', dpi=300, bbox_inches='tight')
 plt.show()
 print("✓ Saved: figures/dl_training_curves.png")
-
 
 # ## 4.6a Statistical Significance of Model Differences
 # 
@@ -2027,7 +1911,6 @@ print("✓ Saved: figures/dl_training_curves.png")
 # 
 
 # In[ ]:
-
 
 # ============================================================
 # 4.6a STATISTICAL SIGNIFICANCE TESTING
@@ -2075,14 +1958,12 @@ for name, errs in [('Ensemble', errors_ensemble), ('XGBoost', errors_xgb), ('Per
 
 print("\n→ Non-overlapping confidence intervals confirm statistically significant differences.")
 
-
 # ## 4.6b Residual Diagnostics
 # 
 # Formal diagnostics for autocorrelation, heteroscedasticity, and normality of residuals.
 # 
 
 # In[ ]:
-
 
 # ============================================================
 # 4.6b RESIDUAL DIAGNOSTICS
@@ -2094,31 +1975,24 @@ print("="*60)
 residuals = y_test_price.values - pred_ensemble
 
 fig, axes = plt.subplots(2, 3, figsize=(20, 12))
-fig.suptitle('Fig. 11 — Residual Diagnostics: XGB + SVR Ensemble\n'
-             'Checking homoscedasticity, normality, and temporal independence of prediction errors',
-             fontsize=15, fontweight='bold', y=1.02)
 
 # 1. Residual time series
 axes[0,0].plot(test_data.index, residuals, alpha=0.4, lw=0.5, color='steelblue')
 axes[0,0].axhline(y=0, color='red', lw=1.5, linestyle='--')
-axes[0,0].set_title('(a) Residuals Over Time', fontsize=12)
 axes[0,0].set_ylabel('Error (EUR/MWh)')
 
 # 2. Residual distribution
 axes[0,1].hist(residuals, bins=80, density=True, alpha=0.6, color='steelblue', edgecolor='white')
 x_norm = np.linspace(residuals.min(), residuals.max(), 300)
 axes[0,1].plot(x_norm, stats.norm.pdf(x_norm, residuals.mean(), residuals.std()), 'r-', lw=2, label='Normal fit')
-axes[0,1].set_title(f'Residual Distribution\nmean={residuals.mean():.2f}, std={residuals.std():.2f}')
 axes[0,1].legend()
 
 # 3. QQ plot of residuals
 stats.probplot(residuals, dist='norm', plot=axes[0,2])
-axes[0,2].set_title('(c) QQ-Plot of Residuals', fontsize=12)
 axes[0,2].get_lines()[0].set_markersize(2)
 
 # 4. ACF of residuals
 plot_acf(residuals, lags=72, ax=axes[1,0], alpha=0.05)
-axes[1,0].set_title('ACF of Residuals')
 axes[1,0].set_xlabel('Lag (hours)')
 
 # 5. Residuals vs Fitted
@@ -2126,7 +2000,6 @@ axes[1,1].scatter(pred_ensemble, residuals, alpha=0.1, s=3, color='steelblue')
 axes[1,1].axhline(y=0, color='red', lw=1.5, linestyle='--')
 axes[1,1].set_xlabel('Fitted Values (EUR/MWh)')
 axes[1,1].set_ylabel('Residuals (EUR/MWh)')
-axes[1,1].set_title('Residuals vs Fitted (Heteroscedasticity Check)')
 
 # 6. Scale-location plot
 axes[1,2].scatter(pred_ensemble, np.sqrt(np.abs(residuals)), alpha=0.1, s=3, color='steelblue')
@@ -2136,10 +2009,9 @@ x_line = np.linspace(pred_ensemble.min(), pred_ensemble.max(), 100)
 axes[1,2].plot(x_line, p(x_line), 'r-', lw=2)
 axes[1,2].set_xlabel('Fitted Values (EUR/MWh)')
 axes[1,2].set_ylabel('√|Residuals|')
-axes[1,2].set_title('Scale-Location Plot')
 
 plt.tight_layout()
-plt.savefig('../figures/residual_diagnostics.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/residual_diagnostics.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 # Formal tests
@@ -2167,14 +2039,12 @@ try:
 except Exception as e:
     print(f"  Breusch-Pagan test skipped: {e}")
 
-
 # ### 4.6b-ii Regime-Stratified Error Analysis
 # 
 # Evaluating model performance **per price regime** reveals where the ensemble
 # struggles — critical for an honest "limitations" discussion.
 
 # In[ ]:
-
 
 # ============================================================
 # 4.6b-ii  REGIME-STRATIFIED ERROR ANALYSIS
@@ -2229,14 +2099,12 @@ print("  partially but imperfectly captures through renewable generation")
 print("  and residual load features.")
 print("=" * 70)
 
-
 # ## 4.6c Learning Curves & Overfitting Diagnostics
 # 
 # Learning curves assess the bias-variance trade-off by plotting training and validation performance as a function of training set size. Convergence of the two curves indicates adequate model capacity; divergence indicates overfitting.
 # 
 
 # In[ ]:
-
 
 # ============================================================
 # 4.6c LEARNING CURVES & OVERFITTING DIAGNOSTICS
@@ -2249,9 +2117,6 @@ print("Computing learning curves (this may take a few minutes)...")
 from sklearn.model_selection import learning_curve
 
 fig, axes = plt.subplots(1, 3, figsize=(20, 6))
-fig.suptitle('Fig. 12 — Learning Curves: Bias–Variance Trade-off Analysis\n'
-             'Convergence of train/validation scores indicates how models generalise with more data',
-             fontsize=15, fontweight='bold', y=1.03)
 
 # Use more regularised XGBoost to get realistic training curves
 models_for_lc = {
@@ -2305,7 +2170,6 @@ for idx, (name, model) in enumerate(models_for_lc.items()):
     
     ax.set_xlabel('Training Set Size')
     ax.set_ylabel('RMSE (EUR/MWh)')
-    ax.set_title(f'{name}')
     ax.legend(loc='upper right')
     ax.grid(True, alpha=0.3)
     
@@ -2314,12 +2178,11 @@ for idx, (name, model) in enumerate(models_for_lc.items()):
     print(f"  {name}: Train RMSE={train_rmse.mean(axis=1)[-1]:.2f}, Val RMSE={val_rmse.mean(axis=1)[-1]:.2f}, Gap={gap:.2f} EUR/MWh")
 
 plt.tight_layout()
-plt.savefig('../figures/learning_curves.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/learning_curves.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 print("\n→ Converging curves indicate the model has learned the signal without severe overfitting.")
 print("  A persistent gap suggests some variance remains (acceptable for complex market data).")
-
 
 # ## 4.6d SHAP Explainability Analysis
 # 
@@ -2327,7 +2190,6 @@ print("  A persistent gap suggests some variance remains (acceptable for complex
 # 
 
 # In[ ]:
-
 
 # ============================================================
 # 4.6d SHAP ANALYSIS
@@ -2348,42 +2210,35 @@ shap_values = explainer.shap_values(X_shap)
 
 # 1. SHAP Summary (beeswarm)
 fig, axes = plt.subplots(1, 2, figsize=(20, 8))
-fig.suptitle('Fig. 13 — SHAP Explainability: Feature Importance & Impact Direction\n'
-             'Explaining XGBoost predictions using Shapley additive values (TreeExplainer)',
-             fontsize=15, fontweight='bold', y=1.04)
+
+X_shap_clean = X_shap.copy()
+X_shap_clean.columns = [clean_label(c) for c in X_shap_clean.columns]
 
 plt.sca(axes[0])
-shap.summary_plot(shap_values, X_shap, show=False, max_display=17, plot_size=None)
-axes[0].set_title('(a) SHAP Beeswarm: Per-Sample Feature Impact on Price', fontsize=12)
+shap.summary_plot(shap_values, X_shap_clean, show=False, max_display=17, plot_size=None)
 
 # 2. SHAP bar plot (mean |SHAP|)
 plt.sca(axes[1])
-shap.summary_plot(shap_values, X_shap, plot_type='bar', show=False, max_display=17, plot_size=None)
-axes[1].set_title('(b) SHAP: Mean |Impact| by Feature (global importance)', fontsize=12)
+shap.summary_plot(shap_values, X_shap_clean, plot_type='bar', show=False, max_display=17, plot_size=None)
 
 plt.tight_layout()
-plt.savefig('../figures/shap_summary.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/shap_summary.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 # 3. SHAP dependence plots for top features
 top_shap_features = np.argsort(-np.abs(shap_values).mean(axis=0))[:4]
 fig, axes = plt.subplots(1, 4, figsize=(22, 5))
-fig.suptitle('Fig. 14 — SHAP Dependence Plots: Top 4 Features\n'
-             'Non-linear relationship between feature value and marginal contribution to price prediction',
-             fontsize=15, fontweight='bold', y=1.03)
 
 for i, feat_idx in enumerate(top_shap_features):
     feat_name = feature_cols[feat_idx]
-    shap.dependence_plot(feat_idx, shap_values, X_shap, ax=axes[i], show=False)
-    axes[i].set_title(feat_name, fontsize=11)
+    shap.dependence_plot(feat_idx, shap_values, X_shap_clean, ax=axes[i], show=False)
 
 plt.tight_layout()
-plt.savefig('../figures/shap_dependence.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/shap_dependence.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 print("\n→ SHAP reveals how each feature value pushes the prediction up or down from the base rate.")
 print("  Unlike Gini importance, SHAP correctly attributes impact for correlated features.")
-
 
 # ### 4.6d-ii Feature Ablation Study
 # 
@@ -2391,7 +2246,6 @@ print("  Unlike Gini importance, SHAP correctly attributes impact for correlated
 # contributes to model performance — complements SHAP importance with causal evidence.
 
 # In[ ]:
-
 
 # ============================================================
 # 4.6d-ii  FEATURE ABLATION STUDY (Leave-One-Out)
@@ -2468,21 +2322,17 @@ _abl_df = pd.DataFrame(_ablation_results).sort_values('Delta_R2', ascending=True
 fig, ax = plt.subplots(figsize=(10, 5))
 colors = ['#e74c3c' if d > 0.01 else '#f39c12' if d > 0.005 else '#2ecc71'
           for d in _abl_df['Delta_R2']]
-ax.barh(_abl_df['Feature'], _abl_df['Delta_R2'], color=colors, edgecolor='white')
+ax.barh(_abl_df['Feature'].apply(clean_label), _abl_df['Delta_R2'], color=colors, edgecolor='white')
 ax.set_xlabel('ΔR² (performance drop when feature removed)', fontsize=12)
 ax.set_ylabel('Feature', fontsize=12)
-ax.set_title('Fig. 15 — Feature Ablation Study: Leave-One-Out Impact on XGBoost R²\n'
-             'Red bars indicate features whose removal substantially degrades performance',
-             fontsize=13, fontweight='bold')
 ax.axvline(x=0, color='black', linewidth=0.8)
 ax.grid(True, axis='x', alpha=0.3)
 for i, (_, row) in enumerate(_abl_df.iterrows()):
     ax.text(row['Delta_R2'] + 0.0005, i, f"{row['Delta_R2']:+.4f}", va='center', fontsize=10)
 plt.tight_layout()
-plt.savefig('../figures/feature_ablation.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/feature_ablation.png', dpi=300, bbox_inches='tight')
 plt.show()
 print("✓ Saved: figures/feature_ablation.png")
-
 
 # ## 4.6e Rolling-Origin Validation
 # 
@@ -2491,12 +2341,9 @@ print("✓ Saved: figures/feature_ablation.png")
 
 # In[ ]:
 
-
 training_logger.log_stage("Rolling-Origin Validation")
 
-
 # In[ ]:
-
 
 # ============================================================
 # 4.6e ROLLING-ORIGIN VALIDATION (Full Ensemble)
@@ -2585,15 +2432,11 @@ print(df_rolling.to_string(index=False))
 
 # Visualise
 fig, axes = plt.subplots(1, 2, figsize=(16, 5))
-fig.suptitle('Fig. 16 — Rolling-Origin Validation: Monthly Ensemble Forecast Performance\n'
-             'Out-of-sample stability across expanding training windows (each bar = one month forecast origin)',
-             fontsize=15, fontweight='bold', y=1.03)
 
 axes[0].plot(df_rolling['Origin'], df_rolling['RMSE'], 'ro-', lw=2)
 axes[0].axhline(y=df_rolling['RMSE'].mean(), color='blue', linestyle='--',
                 label=f'Mean RMSE: {df_rolling["RMSE"].mean():.2f}')
 axes[0].set_ylabel('RMSE (EUR/MWh)')
-axes[0].set_title('(a) RMSE by Forecast Origin Month', fontsize=12)
 axes[0].legend()
 plt.setp(axes[0].get_xticklabels(), rotation=45, ha='right')
 
@@ -2601,12 +2444,11 @@ axes[1].plot(df_rolling['Origin'], df_rolling['R2'], 'bo-', lw=2)
 axes[1].axhline(y=df_rolling['R2'].mean(), color='red', linestyle='--',
                 label=f'Mean R²: {df_rolling["R2"].mean():.4f}')
 axes[1].set_ylabel('R²')
-axes[1].set_title('(b) R² by Forecast Origin Month', fontsize=12)
 axes[1].legend()
 plt.setp(axes[1].get_xticklabels(), rotation=45, ha='right')
 
 plt.tight_layout()
-plt.savefig('../figures/rolling_origin_validation.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/rolling_origin_validation.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 print(f"\nSummary: Mean R² = {df_rolling['R2'].mean():.4f} (±{df_rolling['R2'].std():.4f})")
@@ -2615,12 +2457,10 @@ print(f"         Ensemble alpha: {ENSEMBLE_ALPHA:.2f} (XGB) / {1-ENSEMBLE_ALPHA:
 print("\n→ Full ensemble (XGBoost+SVR) with optimized hyperparameters validates")
 print("  robustness across multiple forecast origins.")
 
-
 # ## 4.7 Price Model Visualisation
 # 
 
 # In[ ]:
-
 
 # ============================================================
 # 4.7 PRICE MODEL VISUALIZATION
@@ -2634,21 +2474,16 @@ _cat_palette = {
 }
 
 fig, axes = plt.subplots(2, 2, figsize=(18, 12))
-fig.suptitle('Fig. 17 — Price Model Results: XGB + SVR Ensemble vs. All Models\n'
-             'Performance ranking, goodness-of-fit, residual distribution, and forecast sample',
-             fontsize=15, fontweight='bold', y=1.02)
 
 # A. Model Ranking — colour-coded by Category
 sns.barplot(x="R2", y="Model", hue="Category", data=final_ranking,
             palette=_cat_palette, dodge=False, ax=axes[0,0])
-axes[0,0].set_title('(a) Model Ranking by R² Score', fontsize=13)
 axes[0,0].set_xlim(0, 1)
 axes[0,0].legend(title="Category", loc="lower right", fontsize=9)
 
 # B. Goodness of Fit Scatter
 axes[0,1].scatter(y_test_price, pred_ensemble, alpha=0.3, color='purple', s=10)
 axes[0,1].plot([y_test_price.min(), y_test_price.max()], [y_test_price.min(), y_test_price.max()], 'r--', lw=2)
-axes[0,1].set_title(f'(b) Actual vs. Predicted Price (R² = {r2_ens:.4f})', fontsize=13)
 axes[0,1].set_xlabel("Actual Price (EUR)")
 axes[0,1].set_ylabel("Predicted Price (EUR)")
 
@@ -2656,7 +2491,6 @@ axes[0,1].set_ylabel("Predicted Price (EUR)")
 errors = y_test_price - pred_ensemble
 sns.histplot(errors, bins=50, kde=True, color='teal', ax=axes[1,0])
 axes[1,0].axvline(x=0, color='red', linestyle='--', lw=2)
-axes[1,0].set_title('(c) Residual Distribution of Prediction Errors (€/MWh)', fontsize=13)
 axes[1,0].set_xlabel("Error (EUR)")
 
 # D. Time Series (2-week sample)
@@ -2666,18 +2500,15 @@ axes[1,1].plot(test_data.index[:window], y_test_price.iloc[:window],
 axes[1,1].plot(test_data.index[:window], pred_ensemble[:window],
                label='Ensemble Forecast', color='purple', linestyle='--')
 axes[1,1].set_ylabel('Price (EUR/MWh)')
-axes[1,1].set_title('(d) Two-Week Forecast Sample: Actual vs. Ensemble', fontsize=13)
 axes[1,1].legend()
 plt.setp(axes[1,1].get_xticklabels(), rotation=45)
 
 plt.tight_layout()
-plt.savefig('../figures/price_model_results.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/price_model_results.png', dpi=300, bbox_inches='tight')
 plt.show()
 print("✓ Price model visualizations saved")
 
-
 # In[ ]:
-
 
 # ============================================================
 # 4.8 SAVE PREDICTIONS
@@ -2691,7 +2522,6 @@ df_results = pd.DataFrame({
 df_results['Error'] = df_results['Actual_Price'] - df_results['Ensemble_Prediction']
 print(df_results.head())
 
-
 # ---
 # # Section 5: Baseline Comparison (ARIMA / SARIMAX)
 # 
@@ -2700,12 +2530,9 @@ print(df_results.head())
 
 # In[ ]:
 
-
 training_logger.log_stage("ARIMA Baseline")
 
-
 # In[ ]:
-
 
 # ============================================================
 # SECTION 5: BASELINE COMPARISON
@@ -2795,7 +2622,6 @@ y_pred_arima = y_pred_arima_rolling
 rmse_arima = _rmse_arima_roll
 print("\n✓ Both ARIMA variants complete")
 
-
 # ### Interpreting ARIMA Baseline Results
 # 
 # Two ARIMA(5,1,0) variants are compared to provide a fair assessment:
@@ -2809,7 +2635,6 @@ print("\n✓ Both ARIMA variants complete")
 # **Why ARIMA still underperforms**: ARIMA is univariate — it only sees historical prices. Electricity price spikes are caused by external events (low wind, high demand, gas price shocks) that a price-only model cannot anticipate. The exogenous features (demand, predicted renewables, gas, CO2, calendar) give the ensemble structural information about the price-formation mechanism.
 
 # In[ ]:
-
 
 # ============================================================
 # 5.3 EVALUATION: RMSE COMPARISON (with CIs)
@@ -2851,9 +2676,7 @@ print(f"IMPROVEMENT vs Long-Hz ARIMA: {improvement_vs_long:.1f}% (inflated — u
 print(f"IMPROVEMENT vs Persistence:   {improvement_vs_persist:.1f}%")
 print("="*80)
 
-
 # In[ ]:
-
 
 # ============================================================
 # 5.4 SPIKE DETECTION ANALYSIS
@@ -2889,17 +2712,12 @@ for name, ytrue, pred_class in [
     print(f"  {name:<15s}: Precision={prec:.3f}, Recall={rec:.3f}, F1={f1:.3f}")
 print("="*60)
 
-
 # In[ ]:
-
 
 # ============================================================
 # 5.5 BASELINE VISUALIZATION
 # ============================================================
 fig = plt.figure(figsize=(18, 12))
-fig.suptitle('Fig. 18 — Baseline Comparison: AI Ensemble vs. ARIMA\n'
-             'Forecast accuracy, spike detection confusion matrices, and overall RMSE comparison',
-             fontsize=15, fontweight='bold', y=1.02)
 
 # Reindex y_pred_arima to the full test index for plotting (NaN where missing)
 _y_pred_arima_plot = y_pred_arima.reindex(y_test_baseline.index)
@@ -2911,7 +2729,6 @@ ax1.plot(y_test_baseline.index[:limit], y_test_baseline.iloc[:limit], label='Act
 ax1.plot(y_test_baseline.index[:limit], _y_pred_arima_plot.iloc[:limit], label='ARIMA', color='orange', linestyle='--', linewidth=1.5)
 ax1.plot(y_test_baseline.index[:limit], y_pred_ai[:limit], label='AI Ensemble', color='#009688', linewidth=2)
 ax1.axhline(y=spike_threshold, color='red', linestyle=':', alpha=0.7, label=f'Spike Threshold (>{spike_threshold:.0f}€)')
-ax1.set_title('(a) One-Week Forecast Sample: AI Ensemble vs. ARIMA', fontsize=13)
 ax1.set_ylabel('Price (EUR/MWh)')
 ax1.legend(fontsize=9)
 ax1.grid(True, alpha=0.3)
@@ -2922,7 +2739,6 @@ labels = ['Normal', 'Spike']
 cm = confusion_matrix(y_true_class, y_pred_ai_class, labels=[0, 1])
 sns.heatmap(cm, annot=True, fmt='d', cmap='GnBu', cbar=False, ax=ax2,
             xticklabels=labels, yticklabels=labels, annot_kws={'size': 14})
-ax2.set_title('(b) AI Ensemble: Spike Detection Confusion Matrix', fontsize=13)
 ax2.set_xlabel('Predicted'); ax2.set_ylabel('Actual')
 
 # Plot 3: Confusion Matrix (ARIMA) — use aligned y_true_arima_class from cell 70
@@ -2930,7 +2746,6 @@ ax3 = plt.subplot(2, 2, 4)
 cm_arima = confusion_matrix(y_true_arima_class, y_pred_arima_class, labels=[0, 1])
 sns.heatmap(cm_arima, annot=True, fmt='d', cmap='Oranges', cbar=False, ax=ax3,
             xticklabels=labels, yticklabels=labels, annot_kws={'size': 14})
-ax3.set_title('(c) ARIMA: Spike Detection Confusion Matrix', fontsize=13)
 ax3.set_xlabel('Predicted'); ax3.set_ylabel('Actual')
 
 # Plot 4: Model comparison bar
@@ -2940,17 +2755,15 @@ rmses_comp = [rmse_arima, rmse_persist, rmse_ai]
 colors = ['orange', 'gray', '#009688']
 bars = ax4.bar(models_comp, rmses_comp, color=colors, edgecolor='black', width=0.6)
 ax4.set_ylabel('RMSE (EUR/MWh)')
-ax4.set_title('(d) Model RMSE Comparison (lower is better)', fontsize=13)
 ax4.grid(axis='y', alpha=0.3)
 for bar, val in zip(bars, rmses_comp):
     ax4.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5, f'{val:.1f}',
              ha='center', fontweight='bold', fontsize=12)
 
 plt.tight_layout()
-plt.savefig('../figures/baseline_comparison_results.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/baseline_comparison_results.png', dpi=300, bbox_inches='tight')
 plt.show()
 print("✓ Baseline comparison visualizations saved")
-
 
 # ---
 # # Section 6: Battery Arbitrage Simulation
@@ -2959,7 +2772,6 @@ print("✓ Baseline comparison visualizations saved")
 # 
 
 # In[ ]:
-
 
 # ============================================================
 # SECTION 6: BATTERY ARBITRAGE SIMULATION
@@ -2985,9 +2797,7 @@ INITIAL_SOC = 0.0
 print(f"Battery System: {BATTERY_POWER_MW} MW / {BATTERY_CAPACITY_MWH} MWh")
 print(f"Round Trip Efficiency: {EFFICIENCY_RTE*100}%")
 
-
 # In[ ]:
-
 
 # ============================================================
 # 6.2 OPTIMIZATION ENGINE (with binary charge/discharge + symmetric efficiency)
@@ -3050,9 +2860,7 @@ print(f"  Effective RTE: {EFFICIENCY_RTE*100:.0f}%")
 print(f"  Binary charge/discharge constraint: simultaneous operation prevented")
 print(f"  Degradation cost: 0.1 EUR/MWh (included in profit)")
 
-
 # In[ ]:
-
 
 # ============================================================
 # 6.3 RUN SIMULATION
@@ -3086,9 +2894,7 @@ for i, day in enumerate(unique_days):
 
 print("✓ Simulation complete")
 
-
 # In[ ]:
-
 
 # ============================================================
 # 6.4 SIMULATION RESULTS — Rich Terminal Dashboard
@@ -3160,9 +2966,7 @@ for month_dt, ai_val in monthly_ai.items():
 print("  \u2502" + " "*68 + "\u2502")
 print("  \u2514" + "\u2500"*68 + "\u2518")
 
-
 # In[ ]:
-
 
 # ============================================================
 # 6.5 SIMULATION VISUALIZATION
@@ -3173,24 +2977,19 @@ plt.plot(df_res_perf_sim.index, df_res_perf_sim['Profit'].cumsum(),
 plt.plot(df_res_ai_sim.index, df_res_ai_sim['Profit'].cumsum(),
          label=f'AI Strategy (Eff: {efficiency:.1f}%)', color='#d62728', linewidth=2)
 
-plt.title('Fig. 19 — Battery Arbitrage Simulation: Cumulative Profit Comparison\n'
-          'Economic value of improved forecasts — AI-guided strategy vs. naive and perfect foresight',
-          fontsize=14, fontweight='bold')
 plt.ylabel('Cumulative Profit (£)', fontsize=12)
 plt.xlabel('Date', fontsize=12)
 plt.grid(True, alpha=0.3)
 plt.legend()
 plt.tight_layout()
-plt.savefig('../figures/battery_simulation_results.png', dpi=150, bbox_inches='tight')
+plt.savefig('../figures/battery_simulation_results.png', dpi=300, bbox_inches='tight')
 plt.show()
 print("✓ Battery simulation visualizations saved")
-
 
 # ---
 # # Section 7: Summary & Conclusions
 
 # In[ ]:
-
 
 # ============================================================
 # SECTION 7: DYNAMIC RESULTS SUMMARY
@@ -3280,9 +3079,7 @@ _conclusions = """
 from IPython.display import Markdown, display
 display(Markdown(_conclusions))
 
-
 # In[ ]:
-
 
 # ============================================================
 # END OF NOTEBOOK
